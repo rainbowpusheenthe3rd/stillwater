@@ -1,0 +1,8 @@
+## Interface: 16001, 120105
+## Title: Stillwater
+## Version: 0.1.0
+## Notes: A calmer screen: quiet action bars that come up when you need them, and procs shown as a ring of light on the ground round you, in your homeland's colour. /still
+## OptionalDeps: Manabloom, Homeland
+## SavedVariablesPerCharacter: StillwaterDB
+
+Stillwater.lua
