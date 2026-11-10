@@ -17,6 +17,16 @@ Question: what is wrong with the default WoW UI and big addon UIs (ElvUI, Gladiu
 - Yeh, M., Merlo, J. L., Wickens, C. D., & Brandenburg, D. L. (2003). Head up versus head down: The costs of imprecision, unreliability, and visual clutter on cue effectiveness for display signaling. *Human Factors, 45*(3), 390–407. https://doi.org/10.1518/hfes.45.3.390.27249
   Supports: putting information over the view saves scanning, but task-irrelevant overlay hinders target detection, and the cost grows with the amount shown. Read: abstract (OpenAlex).
 
+## 10 Nov 2026, about 15:50: the character as the display, and teaching versus driving
+
+Question: the author wants a calm UI and an implied rotation helper ("no cockpit magenta line"), not a boss mod or an autopilot.
+
+- Iacovides, I., Cox, A., Kennedy, R., Cairns, P., & Jennett, C. (2015). Removing the HUD: The impact of non-diegetic game elements and expertise on player involvement. In *Proceedings of the 2015 Annual Symposium on Computer-Human Interaction in Play* (pp. 13–22). ACM. https://doi.org/10.1145/2793107.2793120
+  Supports: removing the HUD raised immersion in expert players by increasing cognitive involvement and sense of control (a first-person shooter, not an MMO). Read: abstract (OpenAlex).
+- Parasuraman, R., & Riley, V. (1997). Humans and automation: Use, misuse, disuse, abuse. *Human Factors, 39*(2), 230–253. https://doi.org/10.1518/001872097778543886
+  Supports: over-reliance on automation (misuse) is a known failure; a helper that says "press this next" invites it. Read: Crossref metadata; the finding is well known, not re-read today.
+- American Airlines, "Children of the Magenta Line" (automation dependency training video, 1997). Read: secondary notes only (https://publish.obsidian.md/cfi-commonplace-book/Filed/Children+of+the+Magenta+Line); the presenter's name was not confirmed.
+
 Non-academic primary sources:
 - Hazzikostas, I. Combat Philosophy and Addon Disarmament in Midnight. Blizzard news, https://news.blizzard.com/en-us/article/24246290 (read in full).
 - Blizzard. Midnight: Get up to Speed with User Interface Updates. https://news.blizzard.com/en-us/article/24223311 (read in full).
