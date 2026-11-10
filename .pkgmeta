@@ -1,0 +1,8 @@
+package-as: Stillwater
+
+ignore:
+  - tools
+  - tests
+  - docs
+  - README.md
+  - RESEARCH.md
