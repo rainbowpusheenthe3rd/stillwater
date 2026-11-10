@@ -15,7 +15,8 @@
 --     can't read auras in combat (Manabloom's lastError, 9 Nov 2026), so Blizzard's signal is the one we use.
 --   * The ripple. If Manabloom is loaded, its bramble reaching the top step (efficient casting, sustained)
 --     sends one ripple out across the ground. Earned, rare, then gone.
---   * The mail icon is made the calendar's size and sits just under it.
+--   * The mail icon is drawn the calendar's size and sits just right of it; shift-drag moves it.
+--   * A proc-highlighted button's glow stays at full strength on a quiet bar.
 --   * A probe. On login it records which of Blizzard's combat tools this client has, and counts proc glows
 --     and secret spell IDs, so the next version is built on what the client really allows. /still probe.
 -- /still for commands.
@@ -64,23 +65,58 @@ local function Fade()
 end
 
 ---------------------------------------------------------------------------------------------- the mail icon
--- The new-mail icon, made the calendar's size and tucked under it at the top right. On this client it sits in
--- MinimapCluster.IndicatorFrame, a layout row that Blizzard re-lays whenever mail comes or goes, so the move is
--- made again after every Layout. Older clients have MiniMapMailFrame on the rim instead; that's moved once.
-local function Mail()
-    local cal = _G.GameTimeFrame
+-- The new-mail icon, drawn the calendar's size and set just right of it. Forever's UI (wow-ui-source "forever"
+-- branch, Blizzard_Minimap/Camelot): the calendar is GameTimeFrame, 23 x 23, at the right end of the zone bar,
+-- and Blizzard anchors the addon compartment under it; the mail is MinimapCluster.IndicatorFrame.MailFrame,
+-- 32 x 24, in a layout row under the zone text that Blizzard re-lays whenever mail comes or goes, so the move is
+-- made again after every Layout. Shift-drag the icon to put it anywhere; /still mail reset puts it back.
+local function MailFrame()
     local row = MinimapCluster and MinimapCluster.IndicatorFrame
-    local mail = (row and row.MailFrame) or _G.MiniMapMailFrame
-    if not (cal and mail and cal:GetHeight() > 0 and mail:GetHeight() > 0) then return end
-    local s = cal:GetHeight() * cal:GetEffectiveScale() / (mail:GetHeight() * mail:GetParent():GetEffectiveScale())
+    return (row and row.MailFrame) or _G.MiniMapMailFrame
+end
+local function Mail()
+    local cal, mail = _G.GameTimeFrame, MailFrame()
+    if not (cal and mail) then return end
+    -- match the drawn icons, not the frames round them (the mail's frame is wider than its envelope)
+    local ch = (cal.StateTexture or cal):GetHeight() * cal:GetEffectiveScale()
+    local mh = (mail.MailIcon or mail):GetHeight() * mail:GetParent():GetEffectiveScale()
+    if ch <= 0 or mh <= 0 then return end
+    local s = ch / mh
     mail:SetScale(s)
     mail:ClearAllPoints()
-    mail:SetPoint("TOP", cal, "BOTTOM", 0, -2 / s)
+    if db and db.mail then
+        mail:SetPoint("CENTER", UIParent, "BOTTOMLEFT", db.mail[1] / mail:GetEffectiveScale(),
+            db.mail[2] / mail:GetEffectiveScale())
+    else
+        mail:SetPoint("LEFT", cal, "RIGHT", 1 / s, 0)
+    end
 end
 local function HookMail()
     local row = MinimapCluster and MinimapCluster.IndicatorFrame
     if row and row.Layout then hooksecurefunc(row, "Layout", Mail) end
+    local mail = MailFrame()
+    if mail and mail.RegisterForDrag then
+        mail:SetMovable(true)
+        mail:RegisterForDrag("LeftButton")
+        mail:SetScript("OnDragStart", function(self) if IsShiftKeyDown() then self:StartMoving() end end)
+        mail:SetScript("OnDragStop", function(self)
+            self:StopMovingOrSizing()
+            local x, y = self:GetCenter()
+            local s = self:GetEffectiveScale()
+            db.mail = { x * s, y * s }          -- screen pixels, so a later change of scale doesn't move it
+            Mail()
+        end)
+    end
     Mail()
+end
+
+-- Blizzard's proc highlight on a button (the alert frame ActionButtonSpellAlertManager puts on it) stays at full
+-- strength while the bar is quiet, so the one button that matters stands out from the rest.
+if ActionButtonSpellAlertManager and ActionButtonSpellAlertManager.ShowAlert then
+    hooksecurefunc(ActionButtonSpellAlertManager, "ShowAlert", function(_, button)
+        local alert = button and button.SpellActivationAlert
+        if alert and alert.SetIgnoreParentAlpha then alert:SetIgnoreParentAlpha(db == nil or db.on) end
+    end)
 end
 
 ---------------------------------------------------------------------------------------------- the ring
@@ -231,6 +267,10 @@ SlashCmdList.STILLWATER = function(msg)
         Open()
         C_Timer.After(2.5, function() if procs == 0 then Close() end end)
         Print(("%s %d."):format(cmd, n))
+    elseif cmd == "mail" and arg == "reset" then
+        db.mail = nil
+        Mail()
+        Print("the mail icon is back beside the calendar.")
     elseif cmd == "test" then
         Open()
         C_Timer.After(3, function() if procs == 0 then Close() end; Ripple() end)
@@ -244,6 +284,7 @@ SlashCmdList.STILLWATER = function(msg)
             tostring(p.client), table.concat(have, ", "), p.glows, p.secretIds))
     else
         Print("/still on|off, rest|fight|edges <0-1> (bar opacity out of combat, in combat, micro menu and"
-            .. " bags), y <px> and size <px> (the ring), test, probe.")
+            .. " bags), y <px> and size <px> (the ring), mail reset (shift-drag the mail icon to move it), test,"
+            .. " probe.")
     end
 end
