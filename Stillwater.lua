@@ -15,6 +15,7 @@
 --     can't read auras in combat (Manabloom's lastError, 9 Nov 2026), so Blizzard's signal is the one we use.
 --   * The ripple. If Manabloom is loaded, its bramble reaching the top step (efficient casting, sustained)
 --     sends one ripple out across the ground. Earned, rare, then gone.
+--   * The mail icon is made the calendar's size and sits just under it.
 --   * A probe. On login it records which of Blizzard's combat tools this client has, and counts proc glows
 --     and secret spell IDs, so the next version is built on what the client really allows. /still probe.
 -- /still for commands.
@@ -60,6 +61,26 @@ local function Fade()
             end
         end
     end
+end
+
+---------------------------------------------------------------------------------------------- the mail icon
+-- The new-mail icon, made the calendar's size and tucked under it at the top right. On this client it sits in
+-- MinimapCluster.IndicatorFrame, a layout row that Blizzard re-lays whenever mail comes or goes, so the move is
+-- made again after every Layout. Older clients have MiniMapMailFrame on the rim instead; that's moved once.
+local function Mail()
+    local cal = _G.GameTimeFrame
+    local row = MinimapCluster and MinimapCluster.IndicatorFrame
+    local mail = (row and row.MailFrame) or _G.MiniMapMailFrame
+    if not (cal and mail and cal:GetHeight() > 0 and mail:GetHeight() > 0) then return end
+    local s = cal:GetHeight() * cal:GetEffectiveScale() / (mail:GetHeight() * mail:GetParent():GetEffectiveScale())
+    mail:SetScale(s)
+    mail:ClearAllPoints()
+    mail:SetPoint("TOP", cal, "BOTTOM", 0, -2 / s)
+end
+local function HookMail()
+    local row = MinimapCluster and MinimapCluster.IndicatorFrame
+    if row and row.Layout then hooksecurefunc(row, "Layout", Mail) end
+    Mail()
 end
 
 ---------------------------------------------------------------------------------------------- the ring
@@ -174,10 +195,12 @@ ev:SetScript("OnEvent", function(_, event, spellID)
         for k, v in pairs(DEFAULTS) do if db[k] == nil then db[k] = v end end
         Probe()
         Place()
+        HookMail()
         C_Timer.NewTicker(0.05, Fade)
     elseif event == "PLAYER_ENTERING_WORLD" then
         procs = 0
         Close()
+        Mail()
     elseif event == "SPELL_ACTIVATION_OVERLAY_GLOW_SHOW" then
         db.probe.glows = db.probe.glows + 1
         if Secret(spellID) then db.probe.secretIds = db.probe.secretIds + 1 end
