@@ -2,7 +2,7 @@ r"""Stillwater's textures: a soft ring of light, drawn white so the addon can ti
 
   uv run --no-project --with pillow --with numpy python tools/stillwater_art.py [--preview <png>]
 
-Writes addon/Stillwater/ring.tga (256 x 256). The addon squashes the square texture into a flat ellipse, so it
+Writes ring.tga (256 x 256). The addon squashes the square texture into a flat ellipse, so it
 lies on the ground round the character's feet like a ripple on still water. The ring is a thin bright core inside
 a wide soft glow; both fall off as Gaussians across the ring's radius, so there is no hard edge to look at.
 """
@@ -13,7 +13,7 @@ import numpy as np
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "addon" / "Stillwater"
+OUT = ROOT
 N = 256
 R = 0.80        # the ring's radius, as a fraction of the half-width
 CORE = 0.018    # the bright core's Gaussian width
