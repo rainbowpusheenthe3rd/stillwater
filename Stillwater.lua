@@ -15,6 +15,7 @@
 --     can't read auras in combat (Manabloom's lastError, 9 Nov 2026), so Blizzard's signal is the one we use.
 --   * The ripple. If Manabloom is loaded, its bramble reaching the top step (efficient casting, sustained)
 --     sends one ripple out across the ground. Earned, rare, then gone.
+--   * A thin outline round each filled button keeps its own opacity (`border`), so quiet bars never vanish.
 --   * The mail icon is drawn the calendar's size and sits just right of it; shift-drag moves it.
 --   * A proc-highlighted button's glow stays at full strength on a quiet bar.
 --   * A probe. On login it records which of Blizzard's combat tools this client has, and counts proc glows
@@ -33,7 +34,7 @@ local RACE = {
     Orc = { 244, 130, 70 }, Scourge = { 156, 116, 186 }, Tauren = { 244, 212, 96 }, Troll = { 232, 112, 200 },
 }
 
-local DEFAULTS = { on = true, rest = 0.35, fight = 0.75, edges = 0.2, y = -110, size = 260 }
+local DEFAULTS = { on = true, rest = 0.35, fight = 0.75, edges = 0.2, border = 0.5, y = -110, size = 260 }
 local STEP = 0.08      -- how far an opacity moves towards its target each tick (0.05 s): about half a second
 local FLAT = 0.38      -- the ring's height over its width: a circle seen lying on the ground
 
@@ -58,6 +59,57 @@ local function Fade()
                 local want, now = Target(f, list[2]), f:GetAlpha()
                 if math.abs(want - now) > 0.005 then
                     f:SetAlpha(now + math.max(-STEP, math.min(STEP, want - now)))
+                end
+            end
+        end
+    end
+end
+
+---------------------------------------------------------------------------------------------- outlines
+-- A 1-pixel pale edge round each filled button's icon, at its own opacity (`border`) whatever the bar's fade, so
+-- the buttons on a quiet bar never vanish entirely. Empty slots get none. Made out of combat only, since the
+-- buttons are secure; shown, hidden and re-faded at any time.
+local outlined = {}
+local function Buttons(bar)
+    if bar.actionButtons then return bar.actionButtons end
+    local list = {}
+    for _, c in ipairs({ bar:GetChildren() }) do if c.icon then list[#list + 1] = c end end
+    return list
+end
+
+local function Edge(o, a, b, ax, ay, bx, by, wide)
+    local t = o:CreateTexture(nil, "OVERLAY")
+    t:SetColorTexture(0.92, 0.92, 0.88)
+    t:SetPoint(a[1], o, a[2], ax, ay)
+    t:SetPoint(b[1], o, b[2], bx, by)
+    local set = wide and "SetHeight" or "SetWidth"
+    if PixelUtil and PixelUtil[set] then PixelUtil[set](t, 1) else t[set](t, 1) end
+end
+
+local function Outline(btn)
+    local o = CreateFrame("Frame", nil, btn)
+    o:SetAllPoints(btn.icon)
+    o:SetIgnoreParentAlpha(true)
+    Edge(o, { "BOTTOMLEFT", "TOPLEFT" }, { "BOTTOMRIGHT", "TOPRIGHT" }, -1, 0, 1, 0, true)
+    Edge(o, { "TOPLEFT", "BOTTOMLEFT" }, { "TOPRIGHT", "BOTTOMRIGHT" }, -1, 0, 1, 0, true)
+    Edge(o, { "TOPRIGHT", "TOPLEFT" }, { "BOTTOMRIGHT", "BOTTOMLEFT" }, 0, 0, 0, 0, false)
+    Edge(o, { "TOPLEFT", "TOPRIGHT" }, { "BOTTOMLEFT", "BOTTOMRIGHT" }, 0, 0, 0, 0, false)
+    outlined[btn] = o
+    return o
+end
+
+local function Outlines()
+    local on = db.on and db.border > 0
+    local fighting = InCombatLockdown and InCombatLockdown()
+    for _, name in ipairs(BARS) do
+        local bar = _G[name]
+        if bar then
+            for _, btn in ipairs(Buttons(bar)) do
+                local o = outlined[btn]
+                if not o and on and not fighting and btn.icon then o = Outline(btn) end
+                if o then
+                    o:SetShown(on and btn:IsShown() and btn.icon:IsShown())
+                    o:SetAlpha(db.border)
                 end
             end
         end
@@ -233,6 +285,8 @@ ev:SetScript("OnEvent", function(_, event, spellID)
         Place()
         HookMail()
         C_Timer.NewTicker(0.05, Fade)
+        Outlines()
+        C_Timer.NewTicker(0.5, Outlines)
     elseif event == "PLAYER_ENTERING_WORLD" then
         procs = 0
         Close()
@@ -258,8 +312,9 @@ SlashCmdList.STILLWATER = function(msg)
         db.on = cmd == "on"
         if not db.on then Close() end
         Print(db.on and "on." or "off: bars at full, no ring.")
-    elseif (cmd == "rest" or cmd == "fight" or cmd == "edges") and n then
+    elseif (cmd == "rest" or cmd == "fight" or cmd == "edges" or cmd == "border") and n then
         db[cmd] = math.max(0, math.min(1, n))
+        Outlines()
         Print(("%s opacity %.2f."):format(cmd, db[cmd]))
     elseif (cmd == "y" or cmd == "size") and n then
         db[cmd] = n
@@ -284,7 +339,7 @@ SlashCmdList.STILLWATER = function(msg)
             tostring(p.client), table.concat(have, ", "), p.glows, p.secretIds))
     else
         Print("/still on|off, rest|fight|edges <0-1> (bar opacity out of combat, in combat, micro menu and"
-            .. " bags), y <px> and size <px> (the ring), mail reset (shift-drag the mail icon to move it), test,"
+            .. " bags), border <0-1> (the outline round each button; 0 for none), y <px> and size <px> (the ring), mail reset (shift-drag the mail icon to move it), test,"
             .. " probe.")
     end
 end

@@ -36,6 +36,8 @@ local function region(t)
   t.Show = function(s) s.shown = true end
   t.Hide = function(s) s.shown = false end
   t.IsShown = function(s) return s.shown end
+  t.SetShown = function(s, v) s.shown = v and true or false end
+  t.GetChildren = function() end
   t.IsMouseOver = function(s) return s.mouse == true end
   t.CreateAnimationGroup = function() return group() end
   t.SetVertexColor = function(s, r, g, b) s.rgb = { r, g, b } end
@@ -46,8 +48,8 @@ local function region(t)
 end
 events = {}
 frames = {}
-function CreateFrame(kind, name)
-  local f = region({ name = name, scripts = {} })
+function CreateFrame(kind, name, parent)
+  local f = region({ name = name, scripts = {}, parent = parent })
   f.SetScript = function(s, k, fn) s.scripts[k] = fn end
   f.RegisterEvent = function(s, e) events[e] = s end
   if name then _G[name] = f end
@@ -55,6 +57,9 @@ function CreateFrame(kind, name)
   return f
 end
 MultiBarBottomLeft = region({ shown = true })
+full = region({ shown = true, icon = region({ shown = true }) })
+empty = region({ shown = true, icon = region({ shown = false }) })
+MultiBarBottomLeft.actionButtons = { full, empty }
 MainActionBar = region({ shown = true })
 BagsBar = region({ shown = true })
 hooks = {}
@@ -102,6 +107,19 @@ assert close(G.MainActionBar.alpha, 0.75), G.MainActionBar.alpha
 lua.execute("MultiBarBottomLeft.mouse = true; tick(20)")
 assert close(G.MultiBarBottomLeft.alpha, 1) and close(G.MainActionBar.alpha, 0.75)
 lua.execute("combat = false; MultiBarBottomLeft.mouse = false")
+
+# outlines: on the filled button only, at their own opacity whatever the bar's, gone with "border 0" or "off"
+o = lua.eval("(function() for _, f in ipairs(frames) do if f.parent == full then return f end end end)()")
+assert o.shown and close(o.alpha, 0.5)
+assert lua.eval("(function() for _, f in ipairs(frames) do if f.parent == empty and f.shown then return false end end return true end)()")
+lua.execute("SlashCmdList.STILLWATER('border 0.8')")
+assert close(o.alpha, 0.8)
+lua.execute("full.icon.shown = false; tick(1)")
+assert not o.shown
+lua.execute("full.icon.shown = true; SlashCmdList.STILLWATER('border 0')")
+assert not o.shown
+lua.execute("SlashCmdList.STILLWATER('border 0.5')")
+assert o.shown
 
 # the ring: tinted moonflower, on the ground below centre; two procs, it closes only when both have gone
 ring = G.StillwaterRing
