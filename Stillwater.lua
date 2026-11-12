@@ -20,7 +20,6 @@
 --   * A proc-highlighted button's glow stays at full strength on a quiet bar.
 --   * Blizzard's durability doll leaves the stack under the minimap for the bottom-right corner, faint until the
 --     mouse is over it (`doll`); shift-drag moves it.
---   * The minimap's coordinates sit on a small engraved bronze nameplate, so they read over Homeland's frame.
 --   * A probe. On login it records which of Blizzard's combat tools this client has, and counts proc glows
 --     and secret spell IDs, so the next version is built on what the client really allows. /still probe.
 -- /still for commands.
@@ -45,17 +44,6 @@ local FLAT = 0.38      -- the ring's height over its width: a circle seen lying 
 -- the durability doll: Blizzard's own, out of the stack under the minimap, faint until the mouse is over it
 local DOLL_AT = { "BOTTOMRIGHT", -30, 80 }  -- default place: the bottom-right corner, above the bags
 
--- the minimap's coordinates: an outline and a faint plate behind, so they read over the frame's art
-local COORDS_PATTERN = "^%s*%-?%d+%.%d+,%s*%-?%d+%.%d+%s*$"
--- an engraved nameplate: dark bronze, lit from above, a thin bronze rim, gold letters cut into it
-local PLATE_TOP = { 0.22, 0.17, 0.10, 0.92 }     -- gradient, top ...
-local PLATE_BOTTOM = { 0.07, 0.05, 0.03, 0.92 }  -- ... to bottom
-local PLATE_RIM = { 0.62, 0.47, 0.24, 0.95 }     -- the bronze border, 1 px
-local PLATE_LIGHT = { 1, 0.92, 0.75, 0.25 }      -- bevel: a highlight along the top inside edge
-local PLATE_DARK = { 0, 0, 0, 0.55 }             -- ... and a shadow along the bottom
-local PLATE_TEXT = { 0.93, 0.84, 0.60 }          -- engraved gold
-local PLATE_PAD_X, PLATE_PAD_Y = 6, 3            -- pixels of plate round the text
-local COORDS_SEARCH_EVERY = 2              -- seconds between looks until the text is found
 
 local db
 local function Secret(v) return issecretvalue and issecretvalue(v) or false end
@@ -218,72 +206,6 @@ local function HookDoll()
     Doll()
 end
 
----------------------------------------------------------------------------------------------- coordinates
--- The minimap's coordinate text isn't ours (it isn't in Blizzard's Camelot minimap code either), so it is found by
--- its look: a FontString under the minimap cluster reading "37.6, 73.4". Once found it gets an outline and a faint
--- plate behind it, so it reads over the frame's vines.
-local coords
-local function FindCoords(frame, depth)
-    if not frame or depth > 6 then return nil end
-    for _, r in ipairs({ frame:GetRegions() }) do
-        if r.GetObjectType and r:GetObjectType() == "FontString" then
-            local t = r:GetText()
-            if type(t) == "string" and not Secret(t) and t:match(COORDS_PATTERN) then return r end
-        end
-    end
-    for _, c in ipairs({ frame:GetChildren() }) do
-        local found = FindCoords(c, depth + 1)
-        if found then return found end
-    end
-end
-local function Coords()
-    if coords then return true end
-    local fs = FindCoords(_G.MinimapCluster, 0) or FindCoords(_G.Minimap, 0)
-    if not fs then return false end
-    coords = fs
-    fs:SetTextColor(PLATE_TEXT[1], PLATE_TEXT[2], PLATE_TEXT[3])
-    fs:SetShadowColor(0, 0, 0, 1)
-    fs:SetShadowOffset(1, -1)
-    local host = fs:GetParent()
-    local function Tex(layer, sub, c)
-        local t = host:CreateTexture(nil, layer, nil, sub)
-        t:SetColorTexture(c[1], c[2], c[3], c[4])
-        return t
-    end
-    -- the plate, with a top-lit gradient where the client has one
-    local plate = Tex("BACKGROUND", 0, PLATE_BOTTOM)
-    plate:SetPoint("TOPLEFT", fs, "TOPLEFT", -PLATE_PAD_X, PLATE_PAD_Y)
-    plate:SetPoint("BOTTOMRIGHT", fs, "BOTTOMRIGHT", PLATE_PAD_X, -PLATE_PAD_Y)
-    if plate.SetGradient and CreateColor then
-        plate:SetColorTexture(1, 1, 1, 1)
-        local b, t = PLATE_BOTTOM, PLATE_TOP
-        pcall(plate.SetGradient, plate, "VERTICAL", CreateColor(b[1], b[2], b[3], b[4]), CreateColor(t[1], t[2], t[3], t[4]))
-    end
-    -- the bronze rim: four 1 px edges round the plate
-    for _, e in ipairs({ { "TOPLEFT", "TOPRIGHT", 0, 1 }, { "BOTTOMLEFT", "BOTTOMRIGHT", 0, 1 },
-                         { "TOPLEFT", "BOTTOMLEFT", 1, 0 }, { "TOPRIGHT", "BOTTOMRIGHT", 1, 0 } }) do
-        local t = Tex("BACKGROUND", 2, PLATE_RIM)
-        t:SetPoint(e[1], plate, e[1])
-        t:SetPoint(e[2], plate, e[2])
-        if e[3] == 1 then t:SetWidth(1) else t:SetHeight(1) end
-    end
-    -- the bevel, just inside the rim: light along the top, shade along the bottom
-    local light = Tex("BACKGROUND", 1, PLATE_LIGHT)
-    light:SetPoint("TOPLEFT", plate, "TOPLEFT", 1, -1)
-    light:SetPoint("TOPRIGHT", plate, "TOPRIGHT", -1, -1)
-    light:SetHeight(1)
-    local dark = Tex("BACKGROUND", 1, PLATE_DARK)
-    dark:SetPoint("BOTTOMLEFT", plate, "BOTTOMLEFT", 1, 1)
-    dark:SetPoint("BOTTOMRIGHT", plate, "BOTTOMRIGHT", -1, 1)
-    dark:SetHeight(1)
-    return true
-end
-local function SeekCoords()
-    if Coords() then return end
-    local t
-    t = C_Timer.NewTicker(COORDS_SEARCH_EVERY, function() if Coords() and t then t:Cancel() end end)
-end
-
 -- Blizzard's proc highlight on a button (the alert frame ActionButtonSpellAlertManager puts on it) stays at full
 -- strength while the bar is quiet, so the one button that matters stands out from the rest.
 if ActionButtonSpellAlertManager and ActionButtonSpellAlertManager.ShowAlert then
@@ -410,7 +332,6 @@ ev:SetScript("OnEvent", function(_, event, spellID)
         Outlines()
         C_Timer.NewTicker(0.5, Outlines)
         HookDoll()
-        SeekCoords()
     elseif event == "PLAYER_ENTERING_WORLD" then
         procs = 0
         Close()
@@ -467,8 +388,8 @@ SlashCmdList.STILLWATER = function(msg)
         local have = {}
         for k, v in pairs(p.has) do have[#have + 1] = k .. (v and " yes" or " no") end
         table.sort(have)
-        Print(("client %s; %s; proc glows seen %d, secret IDs %d; minimap coordinates %s."):format(
-            tostring(p.client), table.concat(have, ", "), p.glows, p.secretIds, coords and "found" or "not found"))
+        Print(("client %s; %s; proc glows seen %d, secret IDs %d."):format(
+            tostring(p.client), table.concat(have, ", "), p.glows, p.secretIds))
     else
         Print("/still on|off, rest|fight|edges <0-1> (bar opacity out of combat, in combat, micro menu and"
             .. " bags), border <0-1> (the outline round each button; 0 for none), y <px> and size <px> (the ring), mail reset (shift-drag the mail icon to move it), doll <0-1>|reset (shift-drag the doll to move it), test,"

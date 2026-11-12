@@ -114,17 +114,9 @@ row.MailFrame.SetScript = function(s, k, fn) s.scripts[k] = fn end
 row.MailFrame.StartMoving = function(s) s.moving = true end
 row.MailFrame.StopMovingOrSizing = function(s) s.moving = false end
 row.MailFrame.GetCenter = function() return 900, 500 end
--- the minimap's coordinate text, somewhere under the cluster
-coordsHolder = region({ shown = true })
-coordsHolder.CreateTexture = function(s) s.made = (s.made or 0) + 1; return region({}) end
-coordsText = coordsHolder.CreateFontString()
-coordsText:SetText("37.6, 73.4")
-coordsText.GetParent = function() return coordsHolder end
-coordsHolder.GetRegions = function() return coordsText end
-coordsHolder.GetChildren = function() end
 MinimapCluster = region({ IndicatorFrame = row })
 MinimapCluster.GetRegions = function() end
-MinimapCluster.GetChildren = function() return coordsHolder end
+MinimapCluster.GetChildren = function() end
 function fire(e, ...) events[e].scripts.OnEvent(events[e], e, ...) end
 """)
 lua.execute(f"local f = load([==[{SRC}]==], 'Stillwater', 't', _G); f('Stillwater')")
@@ -217,7 +209,4 @@ assert db.dollAt is None and D.anchor[1] == "BOTTOMRIGHT"
 lua.execute("DurabilityFrame.anchor = { 'TOP', nil, 'TOP', 5, 5 }; DurabilityFrame.IsInDefaultPosition = function() return false end; fire('PLAYER_ENTERING_WORLD')")
 assert D.anchor[1] == "TOP", "Edit Mode's place wins"
 
-# coordinates: found by their look, outlined, with a plate behind
-assert G.coordsText.rgb[1] > 0.9 and G.coordsText.rgb[3] < 0.7, "engraved gold lettering"
-assert lua.eval("coordsHolder.made or 0") >= 7, "a plate, four rim edges and two bevel lines"
 print("stillwater checks pass")

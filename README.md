@@ -2,7 +2,7 @@
 
 A calmer screen: quiet action bars that come up when you need them, and procs shown as a ring of light on the ground round you, in your homeland's colour. /still
 
-The durability doll moves from under the minimap to the bottom-right corner and stays faint until the mouse is over it (`/still doll <0-1>`); shift-drag moves it, `/still doll reset` puts it back. The minimap's coordinates sit on a small engraved bronze nameplate so they read over the frame art.
+The durability doll moves from under the minimap to the bottom-right corner and stays faint until the mouse is over it (`/still doll <0-1>`); shift-drag moves it, `/still doll reset` puts it back.
 
 ## Install
 
