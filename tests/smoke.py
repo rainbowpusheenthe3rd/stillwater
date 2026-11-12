@@ -60,13 +60,17 @@ local function region(t)
   return stub(t)
 end
 events = {}
-now = 0
-function GetTime() return now end
-dura = {}   -- inventory slot -> { cur, max }
-function GetInventoryItemDurability(slot) local d = dura[slot]; if d then return d[1], d[2] end end
 GameTooltip = stub({ lines = {}, AddDoubleLine = function(s, a, b) s.lines[#s.lines + 1] = a .. " " .. b end })
-DurabilityFrame = region({ shown = true })
-DurabilityFrame.EnableMouse = function(s, v) s.mouse_on = v end
+DurabilityFrame = region({ shown = true, scripts = {} })
+removed = false
+DurabilityFrame.layoutParent = { RemoveManagedFrame = function(_, f) removed = (f == DurabilityFrame) end }
+DurabilityFrame.SetParent = function(s, p) s.parentFrame = p end
+DurabilityFrame.SetMovable = function() end
+DurabilityFrame.RegisterForDrag = function() end
+DurabilityFrame.HookScript = function(s, k, fn) s.scripts[k] = fn end
+DurabilityFrame.StartMoving = function(s) s.moving = true end
+DurabilityFrame.StopMovingOrSizing = function(s) s.moving = false end
+DurabilityFrame.GetCenter = function() return 1500, 200 end
 after = {}
 frames = {}
 function CreateFrame(kind, name, parent)
@@ -193,34 +197,24 @@ lua.execute("SlashCmdList.STILLWATER('off'); tick(20)")
 assert close(G.MainActionBar.alpha, 1)
 lua.execute("SlashCmdList.STILLWATER('probe'); SlashCmdList.STILLWATER('test'); SlashCmdList.STILLWATER('on')")
 
-# armour: Blizzard's doll hidden; nothing shown while all is well; one line, in words, when worn or broken
-A = G.StillwaterArmour
-fade = lambda: lua.execute("now = now + 2; StillwaterArmour.scripts.OnUpdate(StillwaterArmour)")
-assert G.DurabilityFrame.alpha == 0 and G.DurabilityFrame.mouse_on is False
-lua.execute("dura = { [1] = { 50, 50 }, [5] = { 100, 100 } }; fire('UPDATE_INVENTORY_DURABILITY')")
-assert not A.shown, "all well: nothing on screen"
-lua.execute("dura[5] = { 20, 100 }; fire('UPDATE_INVENTORY_DURABILITY')"); fade()
-assert A.shown and close(A.alpha, 1) and A.text.text == "Armour 47% · 1 worn" and A.icon.desat is True, A.text.text
-lua.execute("dura[1] = { 0, 50 }; fire('UPDATE_INVENTORY_ALERTS')")
-assert A.text.text == "1 broken · repair" and A.icon.desat is False, A.text.text
-assert A.text.rgb[1] == 1 and A.text.rgb[2] < 0.6, "broken is coral, not amber"
-pieces = lua.eval("(function() local t = {} for i, p in ipairs(Stillwater_ArmourPieces()) do t[i] = p[1] end return table.concat(t, ',') end)()")
-assert pieces == "Head,Chest", pieces                     # worst first
-lua.execute("GameTooltip.lines = {}; StillwaterArmour.scripts.OnEnter(StillwaterArmour)")
-assert list(G.GameTooltip.lines.values())[:2] == ["Head 0% broken", "Chest 20% worn"], list(G.GameTooltip.lines.values())
-# repaired: "All mended", then it fades away
-lua.execute("dura = { [1] = { 50, 50 }, [5] = { 100, 100 } }; after = {}; fire('UPDATE_INVENTORY_DURABILITY')")
-assert A.text.text == "All mended" and A.shown
-lua.execute("for _, f in ipairs(after) do f() end"); fade()
-assert not A.shown
-# shift-drag moves it; reset puts it back under the character; off brings back Blizzard's doll
-lua.execute("StillwaterArmour.GetCenter = function() return 700, 300 end; StillwaterArmour.StartMoving = function() end; StillwaterArmour.StopMovingOrSizing = function() end; StillwaterArmour.scripts.OnDragStop(StillwaterArmour)")
-assert db.armourAt[1] == 700 and A.anchor[1] == "CENTER" and A.anchor[4] == 700
-lua.execute("SlashCmdList.STILLWATER('armour reset')")
-assert db.armourAt is None and A.anchor[5] == -150
-lua.execute("SlashCmdList.STILLWATER('armour off')")
-assert G.DurabilityFrame.alpha == 1 and not A.shown
-lua.execute("SlashCmdList.STILLWATER('armour on')")
+# the durability doll: out of the stack under the minimap, in the bottom-right corner, faint until mouseover
+D = G.DurabilityFrame
+assert lua.eval("removed") and D.ignoreFramePositionManager and lua.eval("DurabilityFrame.parentFrame == UIParent")
+assert D.anchor[1] == "BOTTOMRIGHT" and D.anchor[4] == -30 and D.anchor[5] == 80, list(D.anchor.values())
+lua.execute("tick(20)")
+assert close(D.alpha, 0.35), D.alpha
+lua.execute("DurabilityFrame.mouse = true; tick(20)")
+assert close(D.alpha, 1), D.alpha
+lua.execute("DurabilityFrame.mouse = false; SlashCmdList.STILLWATER('doll 0.2'); tick(20)")
+assert close(D.alpha, 0.2) and close(db.doll, 0.2)
+# shift-drag moves it and the place is kept; reset puts it back
+lua.execute("shift = true; DurabilityFrame.scripts.OnDragStart(DurabilityFrame); DurabilityFrame.scripts.OnDragStop(DurabilityFrame)")
+assert db.dollAt[1] == 1500 and D.anchor[1] == "CENTER" and D.anchor[4] == 1500
+lua.execute("SlashCmdList.STILLWATER('doll reset')")
+assert db.dollAt is None and D.anchor[1] == "BOTTOMRIGHT"
+# placed in Edit Mode: left where it is
+lua.execute("DurabilityFrame.anchor = { 'TOP', nil, 'TOP', 5, 5 }; DurabilityFrame.IsInDefaultPosition = function() return false end; fire('PLAYER_ENTERING_WORLD')")
+assert D.anchor[1] == "TOP", "Edit Mode's place wins"
 
 # coordinates: found by their look, outlined, with a plate behind
 assert G.coordsText.flags == "OUTLINE", G.coordsText.flags
