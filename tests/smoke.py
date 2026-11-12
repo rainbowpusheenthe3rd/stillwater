@@ -116,6 +116,7 @@ row.MailFrame.StopMovingOrSizing = function(s) s.moving = false end
 row.MailFrame.GetCenter = function() return 900, 500 end
 -- the minimap's coordinate text, somewhere under the cluster
 coordsHolder = region({ shown = true })
+coordsHolder.CreateTexture = function(s) s.made = (s.made or 0) + 1; return region({}) end
 coordsText = coordsHolder.CreateFontString()
 coordsText:SetText("37.6, 73.4")
 coordsText.GetParent = function() return coordsHolder end
@@ -217,5 +218,6 @@ lua.execute("DurabilityFrame.anchor = { 'TOP', nil, 'TOP', 5, 5 }; DurabilityFra
 assert D.anchor[1] == "TOP", "Edit Mode's place wins"
 
 # coordinates: found by their look, outlined, with a plate behind
-assert G.coordsText.flags == "OUTLINE", G.coordsText.flags
+assert G.coordsText.rgb[1] > 0.9 and G.coordsText.rgb[3] < 0.7, "engraved gold lettering"
+assert lua.eval("coordsHolder.made or 0") >= 7, "a plate, four rim edges and two bevel lines"
 print("stillwater checks pass")
