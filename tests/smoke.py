@@ -20,7 +20,7 @@ function InCombatLockdown() return combat end
 function UnitRace() return "Night Elf", "NightElf" end
 function GetBuildInfo() return "x", "y", "z", 16001 end
 tickers = {}
-C_Timer = { NewTicker = function(_, f) tickers[#tickers + 1] = f end, After = function(_, f) end }
+C_Timer = { NewTicker = function(_, f) tickers[#tickers + 1] = f end, After = function(_, f) after[#after + 1] = f end }
 function tick(n) for _ = 1, n do for _, f in ipairs(tickers) do f() end end end
 local function group()
   return stub({ playing = false, plays = 0, scripts = {},
@@ -44,9 +44,30 @@ local function region(t)
   t.SetSize = function(s, w, h) s.w, s.h = w, h end
   t.SetPoint = function(s, _, _, _, x, y) s.y = y end
   t.CreateTexture = function() return stub(region({})) end
+  t.CreateFontString = function()
+    local fs = region({})
+    fs.SetText = function(s, x) s.text = x end
+    fs.GetText = function(s) return s.text end
+    fs.SetTextColor = function(s, r, g, b) s.rgb = { r, g, b } end
+    fs.GetObjectType = function() return "FontString" end
+    fs.GetFont = function(s) return "Fonts/FRIZQT__.TTF", 12, s.flags or "" end
+    fs.SetFont = function(s, f, size, flags) s.flags = flags end
+    return stub(fs)
+  end
+  t.SetDesaturated = function(s, v) s.desat = v end
+  t.SetPoint = function(s, p, rel, rp, x, y) s.y = y; s.anchor = { p, rel, rp, x, y } end
+  t.ClearAllPoints = function(s) s.anchor = nil end
   return stub(t)
 end
 events = {}
+now = 0
+function GetTime() return now end
+dura = {}   -- inventory slot -> { cur, max }
+function GetInventoryItemDurability(slot) local d = dura[slot]; if d then return d[1], d[2] end end
+GameTooltip = stub({ lines = {}, AddDoubleLine = function(s, a, b) s.lines[#s.lines + 1] = a .. " " .. b end })
+DurabilityFrame = region({ shown = true })
+DurabilityFrame.EnableMouse = function(s, v) s.mouse_on = v end
+after = {}
 frames = {}
 function CreateFrame(kind, name, parent)
   local f = region({ name = name, scripts = {}, parent = parent })
@@ -89,7 +110,16 @@ row.MailFrame.SetScript = function(s, k, fn) s.scripts[k] = fn end
 row.MailFrame.StartMoving = function(s) s.moving = true end
 row.MailFrame.StopMovingOrSizing = function(s) s.moving = false end
 row.MailFrame.GetCenter = function() return 900, 500 end
-MinimapCluster = { IndicatorFrame = row }
+-- the minimap's coordinate text, somewhere under the cluster
+coordsHolder = region({ shown = true })
+coordsText = coordsHolder.CreateFontString()
+coordsText:SetText("37.6, 73.4")
+coordsText.GetParent = function() return coordsHolder end
+coordsHolder.GetRegions = function() return coordsText end
+coordsHolder.GetChildren = function() end
+MinimapCluster = region({ IndicatorFrame = row })
+MinimapCluster.GetRegions = function() end
+MinimapCluster.GetChildren = function() return coordsHolder end
 function fire(e, ...) events[e].scripts.OnEvent(events[e], e, ...) end
 """)
 lua.execute(f"local f = load([==[{SRC}]==], 'Stillwater', 't', _G); f('Stillwater')")
@@ -161,5 +191,37 @@ lua.execute("SlashCmdList.STILLWATER('rest 0.5'); SlashCmdList.STILLWATER('y -80
 assert close(db.rest, 0.5) and ring.y == -80 and close(db.fight, 1)
 lua.execute("SlashCmdList.STILLWATER('off'); tick(20)")
 assert close(G.MainActionBar.alpha, 1)
-lua.execute("SlashCmdList.STILLWATER('probe'); SlashCmdList.STILLWATER('test')")
+lua.execute("SlashCmdList.STILLWATER('probe'); SlashCmdList.STILLWATER('test'); SlashCmdList.STILLWATER('on')")
+
+# armour: Blizzard's doll hidden; nothing shown while all is well; one line, in words, when worn or broken
+A = G.StillwaterArmour
+fade = lambda: lua.execute("now = now + 2; StillwaterArmour.scripts.OnUpdate(StillwaterArmour)")
+assert G.DurabilityFrame.alpha == 0 and G.DurabilityFrame.mouse_on is False
+lua.execute("dura = { [1] = { 50, 50 }, [5] = { 100, 100 } }; fire('UPDATE_INVENTORY_DURABILITY')")
+assert not A.shown, "all well: nothing on screen"
+lua.execute("dura[5] = { 20, 100 }; fire('UPDATE_INVENTORY_DURABILITY')"); fade()
+assert A.shown and close(A.alpha, 1) and A.text.text == "Armour 47% · 1 worn" and A.icon.desat is True, A.text.text
+lua.execute("dura[1] = { 0, 50 }; fire('UPDATE_INVENTORY_ALERTS')")
+assert A.text.text == "1 broken · repair" and A.icon.desat is False, A.text.text
+assert A.text.rgb[1] == 1 and A.text.rgb[2] < 0.6, "broken is coral, not amber"
+pieces = lua.eval("(function() local t = {} for i, p in ipairs(Stillwater_ArmourPieces()) do t[i] = p[1] end return table.concat(t, ',') end)()")
+assert pieces == "Head,Chest", pieces                     # worst first
+lua.execute("GameTooltip.lines = {}; StillwaterArmour.scripts.OnEnter(StillwaterArmour)")
+assert list(G.GameTooltip.lines.values())[:2] == ["Head 0% broken", "Chest 20% worn"], list(G.GameTooltip.lines.values())
+# repaired: "All mended", then it fades away
+lua.execute("dura = { [1] = { 50, 50 }, [5] = { 100, 100 } }; after = {}; fire('UPDATE_INVENTORY_DURABILITY')")
+assert A.text.text == "All mended" and A.shown
+lua.execute("for _, f in ipairs(after) do f() end"); fade()
+assert not A.shown
+# shift-drag moves it; reset puts it back under the character; off brings back Blizzard's doll
+lua.execute("StillwaterArmour.GetCenter = function() return 700, 300 end; StillwaterArmour.StartMoving = function() end; StillwaterArmour.StopMovingOrSizing = function() end; StillwaterArmour.scripts.OnDragStop(StillwaterArmour)")
+assert db.armourAt[1] == 700 and A.anchor[1] == "CENTER" and A.anchor[4] == 700
+lua.execute("SlashCmdList.STILLWATER('armour reset')")
+assert db.armourAt is None and A.anchor[5] == -150
+lua.execute("SlashCmdList.STILLWATER('armour off')")
+assert G.DurabilityFrame.alpha == 1 and not A.shown
+lua.execute("SlashCmdList.STILLWATER('armour on')")
+
+# coordinates: found by their look, outlined, with a plate behind
+assert G.coordsText.flags == "OUTLINE", G.coordsText.flags
 print("stillwater checks pass")

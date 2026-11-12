@@ -2,6 +2,8 @@
 
 A calmer screen: quiet action bars that come up when you need them, and procs shown as a ring of light on the ground round you, in your homeland's colour. /still
 
+Armour shows as one line under your character ("Armour 62% · 2 worn", "1 broken · repair") only while something needs mending, in words and a symbol rather than the old colour-only doll; hover for each piece, shift-drag to move, `/still armour off` for Blizzard's doll. The minimap's coordinates get an outline and a faint plate so they read over the frame art.
+
 ## Install
 
 From a release zip: unzip the `Stillwater` folder into `World of Warcraft\_forever_\Interface\AddOns`.
