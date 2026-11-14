@@ -51,6 +51,7 @@ local DOLL_AT = { "BOTTOMRIGHT", -30, 80 }  -- default place: the bottom-right c
 
 
 local db
+local MinimapButton                 -- made with its panel, further down; the login handler calls it
 local function Secret(v) return issecretvalue and issecretvalue(v) or false end
 local function Print(msg) print("|cffb8c8f0Stillwater|r: " .. msg) end
 
@@ -366,6 +367,7 @@ ev:SetScript("OnEvent", function(_, event, spellID)
         C_Timer.NewTicker(0.5, Outlines)
         HookDoll()
         HookChat()
+        MinimapButton()
     elseif event == "PLAYER_ENTERING_WORLD" then
         procs = 0
         Close()
@@ -381,6 +383,160 @@ ev:SetScript("OnEvent", function(_, event, spellID)
         if procs == 0 then Close() end
     end
 end)
+
+---------------------------------------------------------------------------------------------- minimap button
+-- In Homeland's style: faint until you point at it, drag to move it round the edge. Its icon is the ring, in your
+-- race's colour. Click opens a small panel: Stillwater, Quiet chat and Button outlines as toggles, then how faint
+-- the bars sit at rest and in combat. Escape or another click closes it.
+local BUTTON_SIZE, BUTTON_REST, BUTTON_ANGLE, BUTTON_GAP, BUTTON_LEVEL = 24, 0.5, 160, 6, 8
+local PANEL_W, PANEL_PAD, ROW_H, BOX = 200, 10, 20, 11
+local PANEL_BG = { 0.05, 0.04, 0.08, 0.88 }
+local LAV = { 0.77, 0.73, 0.89 }                    -- Homeland's panel lavender: top line, boxes, slider tracks
+local SLIDER_THUMB = "Interface\\Buttons\\UI-SliderBar-Button-Horizontal"
+local OUTLINE_ON = 0.5                              -- the outline's opacity when the toggle turns it back on
+
+local panel
+local function Panel()
+    if panel then return panel end
+    panel = CreateFrame("Frame", "StillwaterPanel", UIParent)
+    panel:SetFrameStrata("DIALOG")
+    panel:EnableMouse(true)
+    local bg = panel:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(PANEL_BG[1], PANEL_BG[2], PANEL_BG[3], PANEL_BG[4])
+    local line = panel:CreateTexture(nil, "BORDER")
+    line:SetColorTexture(LAV[1], LAV[2], LAV[3], 0.8)
+    line:SetHeight(1)
+    line:SetPoint("TOPLEFT")
+    line:SetPoint("TOPRIGHT")
+    local y, rows = -PANEL_PAD, {}
+    local function Toggle(label, get, set)
+        local b = CreateFrame("Button", nil, panel)
+        b:SetSize(PANEL_W - 2 * PANEL_PAD, ROW_H)
+        b:SetPoint("TOPLEFT", PANEL_PAD, y)
+        b.box = b:CreateTexture(nil, "BORDER")
+        b.box:SetSize(BOX, BOX)
+        b.box:SetPoint("LEFT")
+        b.mark = b:CreateTexture(nil, "ARTWORK")
+        b.mark:SetPoint("TOPLEFT", b.box, "TOPLEFT", 2, -2)
+        b.mark:SetPoint("BOTTOMRIGHT", b.box, "BOTTOMRIGHT", -2, 2)
+        b.mark:SetColorTexture(LAV[1], LAV[2], LAV[3], 1)
+        b.box:SetColorTexture(LAV[1], LAV[2], LAV[3], 0.3)
+        b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        b.text:SetPoint("LEFT", b.box, "RIGHT", 6, 0)
+        b.text:SetText(label)
+        b:SetScript("OnClick", function() set(not get()); panel.Refresh() end)
+        b.Refresh = function() b.mark:SetShown(get() and true or false) end
+        rows[#rows + 1] = b
+        y = y - ROW_H
+    end
+    local function Slider(label, key)
+        local name = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        name:SetPoint("TOPLEFT", PANEL_PAD, y - 4)
+        name:SetText(label)
+        local readout = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        readout:SetPoint("TOPRIGHT", -PANEL_PAD, y - 4)
+        local sl = CreateFrame("Slider", nil, panel)
+        sl:SetOrientation("HORIZONTAL")
+        sl:SetSize(PANEL_W - 2 * PANEL_PAD, 16)
+        sl:SetPoint("TOPLEFT", PANEL_PAD, y - 18)
+        sl:SetThumbTexture(SLIDER_THUMB)
+        sl:SetMinMaxValues(0, 1)
+        sl:SetValueStep(0.05)
+        if sl.SetObeyStepOnDrag then sl:SetObeyStepOnDrag(true) end
+        local track = sl:CreateTexture(nil, "BACKGROUND")
+        track:SetColorTexture(LAV[1], LAV[2], LAV[3], 0.35)
+        track:SetHeight(2)
+        track:SetPoint("LEFT")
+        track:SetPoint("RIGHT")
+        sl:SetScript("OnValueChanged", function(self, v)
+            v = math.floor(v / 0.05 + 0.5) * 0.05
+            readout:SetText(("%d%%"):format(math.floor(v * 100 + 0.5)))
+            if not panel.quiet then db[key] = v end
+        end)
+        sl.Refresh = function() sl:SetValue(db[key]) end
+        rows[#rows + 1] = sl
+        y = y - 40
+    end
+    Toggle("Stillwater", function() return db.on end, function(v)
+        db.on = v
+        if not v then Close() end
+        Chat()
+        Outlines()
+    end)
+    Toggle("Quiet chat", function() return db.chat end, function(v) db.chat = v; Chat() end)
+    Toggle("Button outlines", function() return db.border > 0 end, function(v)
+        if v then db.border = db.borderWas or OUTLINE_ON else db.borderWas, db.border = db.border, 0 end
+        Outlines()
+    end)
+    Slider("Bars at rest", "rest")
+    Slider("Bars in combat", "fight")
+    panel:SetSize(PANEL_W, -y + PANEL_PAD)
+    panel.rows = rows                                -- the tests click them
+    function panel.Refresh()
+        panel.quiet = true
+        for _, r in ipairs(rows) do r.Refresh() end
+        panel.quiet = false
+    end
+    tinsert(UISpecialFrames, "StillwaterPanel")      -- Escape closes it
+    panel:Hide()
+    return panel
+end
+
+function MinimapButton()
+    if not Minimap or _G.StillwaterMinimapButton then return end
+    local b = CreateFrame("Button", "StillwaterMinimapButton", Minimap)
+    b:SetSize(BUTTON_SIZE, BUTTON_SIZE)
+    b:SetFrameStrata("MEDIUM")
+    b:SetFrameLevel(Minimap:GetFrameLevel() + BUTTON_LEVEL)
+    b:SetAlpha(BUTTON_REST)
+    b:RegisterForDrag("LeftButton")
+    local disc = b:CreateTexture(nil, "BACKGROUND")
+    disc:SetAllPoints()
+    disc:SetColorTexture(PANEL_BG[1], PANEL_BG[2], PANEL_BG[3], 1)
+    if disc.SetMask then disc:SetMask("Interface\\CharacterFrame\\TempPortraitAlphaMask") end
+    local icon = b:CreateTexture(nil, "ARTWORK")
+    icon:SetPoint("CENTER")
+    icon:SetSize(BUTTON_SIZE * 0.85, BUTTON_SIZE * 0.85)
+    icon:SetTexture(DIR .. "ring")
+    icon:SetBlendMode("ADD")
+    local _, race = UnitRace("player")
+    local c = RACE[race] or { 230, 236, 245 }
+    icon:SetVertexColor(c[1] / 255, c[2] / 255, c[3] / 255)
+    local function Place(angle)
+        local r = Minimap:GetWidth() / 2 + BUTTON_GAP
+        b:ClearAllPoints()
+        b:SetPoint("CENTER", Minimap, "CENTER", r * math.cos(math.rad(angle)), r * math.sin(math.rad(angle)))
+    end
+    Place(db.buttonAngle or BUTTON_ANGLE)
+    b:SetScript("OnEnter", function(self)
+        self:SetAlpha(1)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:AddLine("Stillwater")
+        GameTooltip:AddLine("Click: quiet bars, chat and outlines", 1, 1, 1)
+        GameTooltip:AddLine("Drag: move this button", 0.7, 0.7, 0.7)
+        GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", function(self) self:SetAlpha(BUTTON_REST); GameTooltip:Hide() end)
+    b:SetScript("OnClick", function(self)
+        local p = Panel()
+        if p:IsShown() then return p:Hide() end
+        p:ClearAllPoints()
+        p:SetPoint("TOPRIGHT", self, "BOTTOMLEFT", 0, -4)
+        p.Refresh()
+        p:Show()
+    end)
+    b:SetScript("OnDragStart", function(self)
+        self:SetScript("OnUpdate", function()
+            local mx, my = Minimap:GetCenter()
+            local cx, cy = GetCursorPosition()
+            local s = Minimap:GetEffectiveScale()
+            db.buttonAngle = math.deg(math.atan2(cy / s - my, cx / s - mx))
+            Place(db.buttonAngle)
+        end)
+    end)
+    b:SetScript("OnDragStop", function(self) self:SetScript("OnUpdate", nil) end)
+end
 
 ---------------------------------------------------------------------------------------------- /still
 SLASH_STILLWATER1 = "/still"

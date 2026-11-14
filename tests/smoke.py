@@ -237,3 +237,38 @@ assert G.GeneralDockManager.shown
 lua.execute("SlashCmdList.STILLWATER('on')")
 assert not G.GeneralDockManager.shown
 print("smoke ok")
+
+# the minimap button: made at login, its icon the ring in the race's colour; a click opens the panel, whose
+# toggles switch Stillwater, quiet chat and the outlines, and whose sliders set the bars' opacity
+lua.execute(r"""
+UISpecialFrames = {}
+function tinsert(t, v) t[#t + 1] = v end
+Minimap = region({ shown = true })
+Minimap.GetWidth = function() return 140 end
+Minimap.GetFrameLevel = function() return 2 end
+fire('PLAYER_LOGIN')
+""")
+mb = G.StillwaterMinimapButton
+assert mb is not None and close(mb.alpha, 0.5)
+lua.execute("StillwaterMinimapButton.scripts.OnClick(StillwaterMinimapButton)")
+p = G.StillwaterPanel
+assert p.shown and lua.eval("UISpecialFrames[1]") == "StillwaterPanel"
+rows = p.rows
+assert rows[1].mark.shown and rows[2].mark.shown and rows[3].mark.shown      # on, quiet chat, outlines
+lua.execute("StillwaterPanel.rows[2].scripts.OnClick()")
+assert G.StillwaterDB.chat is False and G.GeneralDockManager.shown and not rows[2].mark.shown
+lua.execute("StillwaterPanel.rows[2].scripts.OnClick()")
+assert G.StillwaterDB.chat is True and not G.GeneralDockManager.shown
+lua.execute("StillwaterDB.border = 0.7; StillwaterPanel.rows[3].scripts.OnClick()")
+assert G.StillwaterDB.border == 0 and not rows[3].mark.shown
+lua.execute("StillwaterPanel.rows[3].scripts.OnClick()")
+assert close(G.StillwaterDB.border, 0.7), G.StillwaterDB.border               # back to what it was
+lua.execute("StillwaterPanel.rows[1].scripts.OnClick()")
+assert G.StillwaterDB.on is False and G.GeneralDockManager.shown              # all off: Blizzard's chat too
+lua.execute("StillwaterPanel.rows[1].scripts.OnClick()")
+assert G.StillwaterDB.on is True and not G.GeneralDockManager.shown
+lua.execute("StillwaterPanel.rows[4].scripts.OnValueChanged(StillwaterPanel.rows[4], 0.52)")
+assert close(G.StillwaterDB.rest, 0.5)                                        # snapped to the 5% step
+lua.execute("StillwaterMinimapButton.scripts.OnClick(StillwaterMinimapButton)")
+assert not p.shown
+print("minimap ok")

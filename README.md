@@ -6,6 +6,8 @@ Chat goes quiet too (this was the Hush addon): the chat tabs and buttons hide an
 
 The durability doll moves from under the minimap to the bottom-right corner and stays faint until the mouse is over it (`/still doll <0-1>`); shift-drag moves it, `/still doll reset` puts it back.
 
+A small button on the minimap's edge (the ring, in your race's colour) opens the options: Stillwater, Quiet chat and Button outlines as toggles, and how faint the bars sit at rest and in combat. Drag it to move it round the edge.
+
 ## Install
 
 From a release zip: unzip the `Stillwater` folder into `World of Warcraft\_forever_\Interface\AddOns`.
