@@ -2,6 +2,8 @@
 
 A calmer screen: quiet action bars that come up when you need them, and procs shown as a ring of light on the ground round you, in your homeland's colour. /still
 
+Chat goes quiet too (this was the Hush addon): the chat tabs and buttons hide and the chat backgrounds clear, while whispers still show and fade and Enter still opens the edit box. `/still chat` or `/hush` shows or hides them. If you used Hush, turn it off: Stillwater does its job now.
+
 The durability doll moves from under the minimap to the bottom-right corner and stays faint until the mouse is over it (`/still doll <0-1>`); shift-drag moves it, `/still doll reset` puts it back.
 
 ## Install

@@ -28,7 +28,7 @@ local function group()
     Play = function(g) g.playing = true; g.plays = g.plays + 1 end, Stop = function(g) g.playing = false end,
     IsPlaying = function(g) return g.playing end, SetScript = function(g, k, f) g.scripts[k] = f end })
 end
-local function region(t)
+function region(t)  -- global: the chat checks at the end build frames too
   t.shown = t.shown or false
   t.alpha = t.alpha or 1
   t.SetAlpha = function(s, a) s.alpha = a end
@@ -210,3 +210,30 @@ lua.execute("DurabilityFrame.anchor = { 'TOP', nil, 'TOP', 5, 5 }; DurabilityFra
 assert D.anchor[1] == "TOP", "Edit Mode's place wins"
 
 print("stillwater checks pass")
+
+# quiet chat (was Hush): tabs and buttons hidden, backgrounds clear, edit box faint; Blizzard re-showing a tab is
+# undone; /still chat and /hush toggle it; /still off gives Blizzard's chat back
+lua.execute(r"""
+GeneralDockManager = region({ shown = true, scripts = {} })
+GeneralDockManager.HookScript = function(s, k, fn) s.scripts[k] = fn end
+ChatFrame1 = region({ shown = true })
+ChatFrame1EditBoxMid = region({ shown = true })
+winAlpha = {}
+function FCF_SetWindowAlpha(cf, a) winAlpha[cf] = a end
+SlashCmdList.STILLWATER('on')
+fire('PLAYER_LOGIN')
+""")
+assert G.StillwaterDB.chat is True and not G.GeneralDockManager.shown
+assert lua.eval("winAlpha[ChatFrame1]") == 0 and close(G.ChatFrame1EditBoxMid.alpha, 0.3)
+lua.execute("GeneralDockManager:Show(); GeneralDockManager.scripts.OnShow(GeneralDockManager)")
+assert not G.GeneralDockManager.shown
+lua.execute("SlashCmdList.STILLWATERHUSH('')")
+assert G.StillwaterDB.chat is False and G.GeneralDockManager.shown and close(G.ChatFrame1EditBoxMid.alpha, 1)
+assert close(lua.eval("winAlpha[ChatFrame1]"), 0.25)
+lua.execute("SlashCmdList.STILLWATER('chat on')")
+assert not G.GeneralDockManager.shown
+lua.execute("SlashCmdList.STILLWATER('off')")
+assert G.GeneralDockManager.shown
+lua.execute("SlashCmdList.STILLWATER('on')")
+assert not G.GeneralDockManager.shown
+print("smoke ok")

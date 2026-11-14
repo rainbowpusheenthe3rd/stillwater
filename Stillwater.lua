@@ -20,6 +20,9 @@
 --   * A proc-highlighted button's glow stays at full strength on a quiet bar.
 --   * Blizzard's durability doll leaves the stack under the minimap for the bottom-right corner, faint until the
 --     mouse is over it (`doll`); shift-drag moves it.
+--   * Quiet chat (was the Hush addon, folded in 14 Nov 2026). The chat tab strip and chat buttons are hidden, the
+--     chat backgrounds cleared and the edit box border faint (`chat`). The chat frame stays, so whispers still
+--     show and fade and Enter still opens the edit box. /still chat (or /hush) shows or hides them.
 --   * A probe. On login it records which of Blizzard's combat tools this client has, and counts proc glows
 --     and secret spell IDs, so the next version is built on what the client really allows. /still probe.
 -- /still for commands.
@@ -37,7 +40,9 @@ local RACE = {
 }
 
 local DEFAULTS = { on = true, rest = 0.35, fight = 0.75, edges = 0.2, border = 0.5, y = -110, size = 260,
-                   doll = 0.35 }
+                   doll = 0.35, chat = true }
+local CHAT = { "GeneralDockManager", "ChatFrameMenuButton", "ChatFrameChannelButton", "QuickJoinToastButton" }
+local CHAT_BOX = 0.3   -- edit box border opacity while chat is quiet: faint, but you can still see where you type
 local STEP = 0.08      -- how far an opacity moves towards its target each tick (0.05 s): about half a second
 local FLAT = 0.38      -- the ring's height over its width: a circle seen lying on the ground
 
@@ -206,6 +211,34 @@ local function HookDoll()
     Doll()
 end
 
+---------------------------------------------------------------------------------------------- quiet chat
+-- The chat tab strip (General, Combat Log, whisper tabs) and the chat buttons hide, the chat window backgrounds
+-- clear and the edit box border fades. The chat frame itself stays, so whispers still appear and fade.
+local function Quiet() return db and db.on and db.chat end
+local function Chat()
+    local quiet = Quiet()
+    for _, name in ipairs(CHAT) do
+        local f = _G[name]
+        if f then f:SetShown(not quiet) end
+    end
+    for i = 1, NUM_CHAT_WINDOWS or 10 do
+        local cf = _G["ChatFrame" .. i]
+        if cf and FCF_SetWindowAlpha then FCF_SetWindowAlpha(cf, quiet and 0 or (DEFAULT_CHATFRAME_ALPHA or 0.25)) end
+        for _, part in ipairs({ "Left", "Mid", "Right" }) do
+            local t = _G["ChatFrame" .. i .. "EditBox" .. part]
+            if t then t:SetAlpha(quiet and CHAT_BOX or 1) end
+        end
+    end
+end
+local function HookChat()
+    for _, name in ipairs(CHAT) do
+        local f = _G[name]
+        -- Blizzard's chat code re-shows these on mouseover and on docking changes
+        if f then f:HookScript("OnShow", function(self) if Quiet() then self:Hide() end end) end
+    end
+    Chat()
+end
+
 -- Blizzard's proc highlight on a button (the alert frame ActionButtonSpellAlertManager puts on it) stays at full
 -- strength while the bar is quiet, so the one button that matters stands out from the rest.
 if ActionButtonSpellAlertManager and ActionButtonSpellAlertManager.ShowAlert then
@@ -332,6 +365,7 @@ ev:SetScript("OnEvent", function(_, event, spellID)
         Outlines()
         C_Timer.NewTicker(0.5, Outlines)
         HookDoll()
+        HookChat()
     elseif event == "PLAYER_ENTERING_WORLD" then
         procs = 0
         Close()
@@ -357,7 +391,12 @@ SlashCmdList.STILLWATER = function(msg)
     if cmd == "on" or cmd == "off" then
         db.on = cmd == "on"
         if not db.on then Close() end
-        Print(db.on and "on." or "off: bars at full, no ring.")
+        Chat()
+        Print(db.on and "on." or "off: bars at full, no ring, chat as Blizzard's.")
+    elseif cmd == "chat" then
+        if arg == "on" or arg == "off" then db.chat = arg == "on" else db.chat = not db.chat end
+        Chat()
+        Print("chat tabs and buttons " .. (Quiet() and "hidden." or "shown."))
     elseif (cmd == "rest" or cmd == "fight" or cmd == "edges" or cmd == "border") and n then
         db[cmd] = math.max(0, math.min(1, n))
         Outlines()
@@ -392,7 +431,10 @@ SlashCmdList.STILLWATER = function(msg)
             tostring(p.client), table.concat(have, ", "), p.glows, p.secretIds))
     else
         Print("/still on|off, rest|fight|edges <0-1> (bar opacity out of combat, in combat, micro menu and"
-            .. " bags), border <0-1> (the outline round each button; 0 for none), y <px> and size <px> (the ring), mail reset (shift-drag the mail icon to move it), doll <0-1>|reset (shift-drag the doll to move it), test,"
+            .. " bags), border <0-1> (the outline round each button; 0 for none), y <px> and size <px> (the ring), mail reset (shift-drag the mail icon to move it), doll <0-1>|reset (shift-drag the doll to move it),"
+            .. " chat [on|off] (quiet chat: tabs, buttons and backgrounds hidden; /hush toggles it too), test,"
             .. " probe.")
     end
 end
+SLASH_STILLWATERHUSH1 = "/hush"   -- Hush's old command, kept for the fingers that know it
+SlashCmdList.STILLWATERHUSH = function() SlashCmdList.STILLWATER("chat") end
