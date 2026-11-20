@@ -1,5 +1,7 @@
 # Stillwater
 
+![The proc ring in each race's colour, lying flat on the ground as it does round you](docs/rings.png)
+
 ### A calmer screen: action bars that rest faint until you need them, procs as a ring of light at your feet, and quiet chat.
 
 ## What you get
@@ -63,3 +65,5 @@ New-Item -ItemType Junction -Path "<WoW folder>\_forever_\Interface\AddOns\Still
 `tests/` holds its smoke tests (`uv run --with lupa python tests/<file>.py`).
 
 </details>
+
+<p align="center"><img src="docs/mint.png" alt="The proc ring" width="150"></p>
